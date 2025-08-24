@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "patent-downloader"
+version = "0.1.0"
+description = "A Python SDK for downloading patents from Google Patents with MCP support"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Edison", email = "zhangn661@gmail.com"},
+]
+keywords = ["patent", "download", "google-patents", "mcp", "sdk"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.25.0",
+    "beautifulsoup4>=4.9.0",
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.1",
+    "pre-commit>=4.3.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.12.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/Edison-A-N/patent_downloader"
+Repository = "https://github.com/Edison-A-N/patent_downloader"
+Documentation = "https://github.com/Edison-A-N/patent_downloader#readme"
+Issues = "https://github.com/Edison-A-N/patent_downloader/issues"
+
+[project.scripts]
+patent-downloader = "patent_downloader.cli:main"
+
+[project.optional-dependencies]
+mcp = [
+    "fastapi>=0.116.1",
+    "mcp>=1.13.1",
+    "uvicorn>=0.35.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/patent_downloader"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
