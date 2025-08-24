@@ -44,6 +44,19 @@ class PatentDownloader:
             }
         )
 
+    def download_patent_data(self, patent_number: str) -> bytes:
+        """
+        Download a patent PDF from Google Patents and return the data as bytes.
+        """
+        try:
+            self._validate_patent_number(patent_number)
+            patent_url = f"https://patents.google.com/patent/{patent_number}/en"
+            pdf_link = self._retrieve_pdf_link(patent_number, patent_url)
+            return self._download_pdf_data(pdf_link, patent_number, patent_url)
+        except Exception as e:
+            logger.error(f"Error downloading patent {patent_number}: {e}")
+            raise DownloadFailedError(f"Error downloading patent {patent_number}: {e}") from e
+
     def download_patent(self, patent_number: str, output_dir: str = ".") -> bool:
         """
         Download a patent PDF from Google Patents.
@@ -64,17 +77,12 @@ class PatentDownloader:
         try:
             self._validate_patent_number(patent_number)
 
+            patent_url = f"https://patents.google.com/patent/{patent_number}/en"
+
             output_path = Path(output_dir)
             output_path.mkdir(parents=True, exist_ok=True)
 
-            patent_url = f"https://patents.google.com/patent/{patent_number}/en"
-
-            # Get the patent page
-            response = self.session.get(patent_url, timeout=self.timeout)
-            response.raise_for_status()
-
-            # Parse the page to find PDF download link
-            pdf_link = self._find_pdf_link(response.content, patent_number)
+            pdf_link = self._retrieve_pdf_link(patent_number, patent_url)
 
             if not pdf_link:
                 raise PatentNotFoundError(f"Could not find PDF download link for patent {patent_number}")
@@ -150,6 +158,42 @@ class PatentDownloader:
         if len(patent_number.strip()) < 3:
             raise InvalidPatentNumberError("Patent number too short")
 
+    def _retrieve_pdf_link(self, patent_number: str, patent_url: str) -> str:
+        """
+        Download a patent PDF from Google Patents and return the data as bytes.
+
+        Args:
+            patent_number: The patent number to download (e.g., "WO2013078254A1")
+
+        Returns:
+            bytes: The PDF data as bytes
+
+        Raises:
+            InvalidPatentNumberError: If patent number is invalid
+            PatentNotFoundError: If patent is not found
+            DownloadFailedError: If download fails
+            NetworkError: If there's a network error
+        """
+        try:
+            response = self.session.get(patent_url, timeout=self.timeout)
+            response.raise_for_status()
+
+            pdf_link = self._find_pdf_link(response.content, patent_number)
+
+            if not pdf_link:
+                raise PatentNotFoundError(f"Could not find PDF download link for patent {patent_url}")
+
+            return pdf_link
+
+        except requests.RequestException as e:
+            logger.error(f"Network error downloading patent {patent_url}: {e}")
+            raise NetworkError(f"Network error: {e}") from e
+        except PatentDownloadError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error for patent {patent_url}: {e}")
+            raise DownloadFailedError(f"Unexpected error: {e}") from e
+
     def _find_pdf_link(self, content: bytes, patent_number: str) -> Optional[str]:
         """Find PDF download link in the patent page."""
         soup = BeautifulSoup(content, "html.parser")
@@ -197,12 +241,12 @@ class PatentDownloader:
 
         return pdf_link
 
-    def _download_pdf(self, pdf_link: str, patent_number: str, output_path: Path, referer: str) -> bool:
-        """Download the PDF file."""
+    def _download_pdf_data(self, pdf_link: str, patent_number: str, referer: str) -> bytes:
+        """Download the PDF data and return as bytes."""
         try:
             headers = {"Referer": referer}
 
-            logger.info(f"Downloading PDF for patent {patent_number} from {pdf_link}")
+            logger.info(f"Downloading PDF data for patent {patent_number} from {pdf_link}")
 
             pdf_response = self.session.get(pdf_link, headers=headers, timeout=self.timeout)
             pdf_response.raise_for_status()
@@ -212,9 +256,23 @@ class PatentDownloader:
             if "pdf" not in content_type and not pdf_response.content.startswith(b"%PDF"):
                 logger.warning(f"Response doesn't appear to be a PDF (Content-Type: {content_type})")
 
+            logger.info(
+                f"Successfully downloaded PDF data for patent {patent_number} ({len(pdf_response.content)} bytes)"
+            )
+            return pdf_response.content
+
+        except Exception as e:
+            logger.error(f"Error downloading PDF data for patent {patent_number}: {e}")
+            raise DownloadFailedError(f"Failed to download PDF data: {e}") from e
+
+    def _download_pdf(self, pdf_link: str, patent_number: str, output_path: Path, referer: str) -> bool:
+        """Download the PDF file."""
+        try:
+            pdf_data = self._download_pdf_data(pdf_link, patent_number, referer)
+
             output_file = output_path / f"{patent_number}.pdf"
             with open(output_file, "wb") as f:
-                f.write(pdf_response.content)
+                f.write(pdf_data)
 
             logger.info(f"Successfully downloaded {output_file}")
             return True
