@@ -81,12 +81,12 @@ def info_command(args: argparse.Namespace) -> int:
         return 1
 
 
-def mcp_server_command(args: argparse.Namespace) -> int:
+def mcp_server_command(_: argparse.Namespace) -> int:
     """Handle the MCP server command."""
     try:
         from .mcp_server import start_mcp_server
 
-        start_mcp_server(host=args.host, port=args.port)
+        start_mcp_server()
         return 0
     except ImportError:
         print("MCP support not available. Install with: pip install 'patent-downloader[mcp]'")

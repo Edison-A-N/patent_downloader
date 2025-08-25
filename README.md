@@ -72,21 +72,38 @@ patent-downloader download WO2013078254A1 US20130123448A1 EP1234567A1
 
 ### MCP Server
 
-Start the MCP server:
+Start the MCP server using stdio transport:
 
 ```bash
 # Start MCP server
 patent-downloader mcp-server
+```
 
-# Or with custom port
-patent-downloader mcp-server --port 8000
+#### Using uvx (without installation)
+
+You can also run the MCP server directly using uvx without installing the package:
+
+```bash
+# Run MCP server with uvx
+uvx patent-downloader mcp-server
 ```
 
 The MCP server provides the following functions:
 
 - `download_patent`: Download a single patent
 - `download_patents`: Download multiple patents
-- `search_patents`: Search for patents (future feature)
+- `get_patent_info`: Get detailed patent information
+
+#### Environment Variables
+
+- `OUTPUT_DIR`: Default output directory for downloaded files (default: `./downloads`)
+
+Example:
+```bash
+# Set custom output directory
+export OUTPUT_DIR="/path/to/patents"
+patent-downloader mcp-server
+```
 
 ## API Reference
 

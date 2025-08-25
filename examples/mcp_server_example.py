@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-MCP Server example for the Patent Downloader SDK.
+MCP Server example for the Patent Downloader SDK using mcp.FastMCP.
 
 This example demonstrates how to start and use the MCP server
-for patent downloading functionality.
+for patent downloading functionality using stdio transport.
 """
 
-import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from patent_downloader.mcp_server import PatentDownloaderMCPServer
+    from patent_downloader.mcp_server import create_mcp_server
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure you have installed the MCP dependencies:")
@@ -22,25 +22,33 @@ except ImportError as e:
     sys.exit(1)
 
 
-async def main():
+def main():
     """Main MCP server example."""
-    print("Patent Downloader SDK - MCP Server Example")
+    print("Patent Downloader SDK - MCP Server Example (mcp.FastMCP)")
     print("=" * 50)
 
-    # Create and start the MCP server
-    server = PatentDownloaderMCPServer()
+    # Set default output directory if not already set
+    if "OUTPUT_DIR" not in os.environ:
+        os.environ["OUTPUT_DIR"] = "./downloads"
+        print(f"Setting default OUTPUT_DIR to: {os.environ['OUTPUT_DIR']}")
 
-    print("Starting MCP server on localhost:8000")
+    # Create the MCP server
+    server = create_mcp_server()
+
+    print("Starting MCP server using stdio transport")
     print("The server provides the following tools:")
     print("  - download_patent: Download a single patent PDF")
     print("  - download_patents: Download multiple patent PDFs")
     print("  - get_patent_info: Get detailed patent information")
     print()
-    print("You can connect to this server using an MCP client.")
+    print("Configuration:")
+    print(f"  Output directory: {os.environ.get('OUTPUT_DIR', './downloads')}")
+    print()
+    print("You can connect to this server using an MCP client that supports stdio transport.")
     print("Press Ctrl+C to stop the server.")
 
     try:
-        await server.run(host="localhost", port=8000)
+        server.run()
     except KeyboardInterrupt:
         print("\nServer stopped by user")
     except Exception as e:
@@ -48,4 +56,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -263,20 +263,6 @@ wheels = [
 ]
 
 [[package]]
-name = "fastapi"
-version = "0.116.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "starlette" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/78/d7/6c8b3bfe33eeffa208183ec037fee0cce9f7f024089ab1c5d12ef04bd27c/fastapi-0.116.1.tar.gz", hash = "sha256:ed52cbf946abfd70c5a0dccb24673f0670deeb517a88b3544d03c2a6bf283143", size = 296485, upload-time = "2025-07-11T16:22:32.057Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/47/d63c60f59a59467fda0f93f46335c9d18526d7071f025cb5b89d5353ea42/fastapi-0.116.1-py3-none-any.whl", hash = "sha256:c46ac7c312df840f0c9e220f7964bada936781bc4e2e6eb71f1c4d7553786565", size = 95631, upload-time = "2025-07-11T16:22:30.485Z" },
-]
-
-[[package]]
 name = "filelock"
 version = "3.19.1"
 source = { registry = "https://pypi.org/simple" }
@@ -492,9 +478,7 @@ dependencies = [
 
 [package.optional-dependencies]
 mcp = [
-    { name = "fastapi" },
     { name = "mcp" },
-    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -509,12 +493,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.9.0" },
-    { name = "fastapi", marker = "extra == 'mcp'", specifier = ">=0.116.1" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.13.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "requests", specifier = ">=2.25.0" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
-    { name = "uvicorn", marker = "extra == 'mcp'", specifier = ">=0.35.0" },
 ]
 provides-extras = ["mcp"]
 
