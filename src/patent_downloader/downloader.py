@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from bs4 import BeautifulSoup
 import logging
+import concurrent.futures
+import threading
 
 from .exceptions import (
     PatentDownloadError,
@@ -101,7 +103,7 @@ class PatentDownloader:
 
     def download_patents(self, patent_numbers: List[str], output_dir: str = ".") -> Dict[str, bool]:
         """
-        Download multiple patents.
+        Download multiple patents using thread-based concurrency.
 
         Args:
             patent_numbers: List of patent numbers to download
@@ -111,14 +113,27 @@ class PatentDownloader:
             Dict mapping patent numbers to success status
         """
         results = {}
+        results_lock = threading.Lock()
+        max_workers = 4  # Fixed number of workers
 
-        for patent_number in patent_numbers:
+        def download_single_patent(patent_number: str) -> None:
+            """Download a single patent and store result with thread safety."""
             try:
                 success = self.download_patent(patent_number, output_dir)
-                results[patent_number] = success
+                with results_lock:
+                    results[patent_number] = success
             except Exception as e:
                 logger.error(f"Failed to download patent {patent_number}: {e}")
-                results[patent_number] = False
+                with results_lock:
+                    results[patent_number] = False
+
+        # Use ThreadPoolExecutor for concurrent downloads
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all download tasks
+            futures = [executor.submit(download_single_patent, patent_number) for patent_number in patent_numbers]
+
+            # Wait for all tasks to complete
+            concurrent.futures.wait(futures)
 
         return results
 
