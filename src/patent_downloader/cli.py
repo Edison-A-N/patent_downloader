@@ -21,7 +21,7 @@ def print_progress_bar(completed: int, total: int, patent_number: str, success: 
 
 def setup_logging(verbose: bool = False) -> None:
     """Setup logging configuration."""
-    level = logging.DEBUG if verbose else logging.INFO
+    level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
