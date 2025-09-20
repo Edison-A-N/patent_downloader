@@ -66,8 +66,8 @@ The MCP server provides these functions:
 # Start server
 patent-downloader mcp-server
 
-# Or with uvx
-uvx patent-downloader mcp-server
+# Using uvx to run without installation (specify MCP dependencies):
+uvx --with mcp patent-downloader mcp-server
 ```
 
 ## API
