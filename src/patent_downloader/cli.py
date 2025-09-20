@@ -8,6 +8,17 @@ from .downloader import PatentDownloader
 from .exceptions import PatentDownloadError
 
 
+def print_progress_bar(completed: int, total: int, patent_number: str, success: bool):
+    """Print a progress bar using =========== symbols."""
+    progress = int((completed / total) * 20)  # 20 segments for the bar
+    bar = "=" * progress + " " * (20 - progress)
+    status = "✓" if success else "✗"
+    print(f"\r[{bar}] {completed}/{total} {status} {patent_number}", end="", flush=True)
+
+    if completed == total:
+        print()  # New line at the end
+
+
 def setup_logging(verbose: bool = False) -> None:
     """Setup logging configuration."""
     level = logging.DEBUG if verbose else logging.INFO
@@ -29,13 +40,18 @@ def download_command(args: argparse.Namespace) -> int:
                 print(f"Failed to download patent {args.patent_numbers[0]}")
                 return 1
         else:
-            # Multiple patents download
-            results = downloader.download_patents(args.patent_numbers, args.output_dir)
+            # Multiple patents download with progress
+            total = len(args.patent_numbers)
+            print(f"Starting download of {total} patents...")
+
+            results = downloader.download_patents(
+                args.patent_numbers, args.output_dir, progress_callback=print_progress_bar
+            )
 
             successful = [pn for pn, success in results.items() if success]
             failed = [pn for pn, success in results.items() if not success]
 
-            print("Download completed:")
+            print("\nDownload completed:")
             print(f"  Successful: {len(successful)} patents")
             print(f"  Failed: {len(failed)} patents")
 

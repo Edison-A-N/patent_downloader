@@ -2,7 +2,7 @@
 
 import requests
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 from bs4 import BeautifulSoup
 import logging
 import concurrent.futures
@@ -101,13 +101,20 @@ class PatentDownloader:
             logger.error(f"Unexpected error for patent {patent_number}: {e}")
             raise DownloadFailedError(f"Unexpected error: {e}") from e
 
-    def download_patents(self, patent_numbers: List[str], output_dir: str = ".") -> Dict[str, bool]:
+    def download_patents(
+        self,
+        patent_numbers: List[str],
+        output_dir: str = ".",
+        progress_callback: Optional[Callable[[int, int, str, bool], None]] = None,
+    ) -> Dict[str, bool]:
         """
         Download multiple patents using thread-based concurrency.
 
         Args:
             patent_numbers: List of patent numbers to download
             output_dir: Directory to save the PDF files
+            progress_callback: Callback function for progress updates
+                Signature: (completed: int, total: int, patent_number: str, success: bool) -> None
 
         Returns:
             Dict mapping patent numbers to success status
@@ -115,17 +122,26 @@ class PatentDownloader:
         results = {}
         results_lock = threading.Lock()
         max_workers = 4  # Fixed number of workers
+        completed = 0
+        total = len(patent_numbers)
 
         def download_single_patent(patent_number: str) -> None:
             """Download a single patent and store result with thread safety."""
+            nonlocal completed
             try:
                 success = self.download_patent(patent_number, output_dir)
                 with results_lock:
                     results[patent_number] = success
+                    completed += 1
+                    if progress_callback:
+                        progress_callback(completed, total, patent_number, success)
             except Exception as e:
                 logger.error(f"Failed to download patent {patent_number}: {e}")
                 with results_lock:
                     results[patent_number] = False
+                    completed += 1
+                    if progress_callback:
+                        progress_callback(completed, total, patent_number, False)
 
         # Use ThreadPoolExecutor for concurrent downloads
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
