@@ -10,10 +10,10 @@ from .exceptions import PatentDownloadError
 
 def print_progress_bar(completed: int, total: int, patent_number: str, success: bool):
     """Print a progress bar using =========== symbols."""
-    progress = int((completed / total) * 20)  # 20 segments for the bar
-    bar = "=" * progress + " " * (20 - progress)
-    status = "✓" if success else "✗"
-    print(f"\r[{bar}] {completed}/{total} {status} {patent_number}", end="", flush=True)
+    progress = int((completed / total) * 80)
+    bar = "=" * progress + " " * (80 - progress)
+
+    print(f"\r[{bar}] {completed}/{total}", end="", flush=True)
 
     if completed == total:
         print()  # New line at the end
