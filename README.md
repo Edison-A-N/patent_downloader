@@ -9,6 +9,7 @@ A Python SDK for downloading patents from Google Patents with MCP support.
 - MCP server support
 - Command-line interface
 - Simple API with error handling
+- **Support for batch downloading from files (TXT/CSV)**
 
 ## Installation
 
@@ -39,6 +40,9 @@ print(f"Title: {info.title}")
 
 # Download multiple patents
 results = downloader.download_patents(["WO2013078254A1", "US20130123448A1"])
+
+# Download patents from file
+results = downloader.download_patents_from_file("patents.txt", has_header=False)
 ```
 
 ### Command Line
@@ -47,6 +51,10 @@ results = downloader.download_patents(["WO2013078254A1", "US20130123448A1"])
 # Download patents
 patent-downloader download WO2013078254A1
 patent-downloader download WO2013078254A1 US20130123448A1 --output-dir ./patents
+
+# Download patents from file
+patent-downloader download --file patents.txt
+patent-downloader download --file patents.csv --has-header
 
 # Get patent info
 patent-downloader info WO2013078254A1
@@ -81,6 +89,9 @@ downloader.download_patent(patent_number, output_dir=".")
 # Download multiple patents
 downloader.download_patents(patent_numbers, output_dir=".")
 
+# Download patents from file
+downloader.download_patents_from_file(file_path, has_header=False, output_dir=".")
+
 # Get patent info
 downloader.get_patent_info(patent_number)
 ```
@@ -98,6 +109,31 @@ class PatentInfo:
     abstract: str
     url: Optional[str] = None
 ```
+
+## File Format Support
+
+The SDK supports reading patent numbers from both TXT and CSV files:
+
+### TXT Files
+- One patent number per line
+- Optional header row (use `--has-header` flag)
+- Example:
+  ```
+  WO2013078254A1
+  US20130123448A1
+  EP1234567A1
+  ```
+
+### CSV Files
+- Single column of patent numbers
+- Optional header row (use `--has-header` flag)
+- Example:
+  ```csv
+  patent_number
+  WO2013078254A1
+  US20130123448A1
+  EP1234567A1
+  ```
 
 ## License
 

@@ -8,6 +8,7 @@ import logging
 import concurrent.futures
 import threading
 
+from .file_utils import read_patent_numbers_from_file
 from .exceptions import (
     PatentDownloadError,
     PatentNotFoundError,
@@ -56,7 +57,6 @@ class PatentDownloader:
             pdf_link = self._retrieve_pdf_link(patent_number, patent_url)
             return self._download_pdf_data(pdf_link, patent_number, patent_url)
         except Exception as e:
-            logger.error(f"Error downloading patent {patent_number}: {e}")
             raise DownloadFailedError(f"Error downloading patent {patent_number}: {e}") from e
 
     def download_patent(self, patent_number: str, output_dir: str = ".") -> bool:
@@ -93,12 +93,10 @@ class PatentDownloader:
             return self._download_pdf(pdf_link, patent_number, output_path, patent_url)
 
         except requests.RequestException as e:
-            logger.error(f"Network error downloading patent {patent_number}: {e}")
             raise NetworkError(f"Network error: {e}") from e
         except PatentDownloadError:
             raise
         except Exception as e:
-            logger.error(f"Unexpected error for patent {patent_number}: {e}")
             raise DownloadFailedError(f"Unexpected error: {e}") from e
 
     def download_patents(
@@ -135,8 +133,7 @@ class PatentDownloader:
                     completed += 1
                     if progress_callback:
                         progress_callback(completed, total, patent_number, success)
-            except Exception as e:
-                logger.error(f"Failed to download patent {patent_number}: {e}")
+            except Exception:
                 with results_lock:
                     results[patent_number] = False
                     completed += 1
@@ -152,6 +149,42 @@ class PatentDownloader:
             concurrent.futures.wait(futures)
 
         return results
+
+    def download_patents_from_file(
+        self,
+        file_path: str,
+        has_header: bool = False,
+        output_dir: str = ".",
+        progress_callback: Optional[Callable[[int, int, str, bool], None]] = None,
+    ) -> Dict[str, bool]:
+        """
+        Download patents from a file (txt or csv).
+
+        Args:
+            file_path: Path to the file containing patent numbers
+            has_header: Whether the file has a header row
+            output_dir: Directory to save the PDF files
+            progress_callback: Callback function for progress updates
+                Signature: (completed: int, total: int, patent_number: str, success: bool) -> None
+
+        Returns:
+            Dict mapping patent numbers to success status
+
+        Raises:
+            FileNotFoundError: If file does not exist
+            ValueError: If file format is invalid or contains no patent numbers
+        """
+
+        try:
+            patent_numbers = read_patent_numbers_from_file(file_path, has_header)
+            return self.download_patents(patent_numbers, output_dir, progress_callback)
+
+        except FileNotFoundError:
+            raise
+        except ValueError:
+            raise
+        except Exception as e:
+            raise DownloadFailedError(f"Failed to read patent numbers from file: {e}") from e
 
     def get_patent_info(self, patent_number: str) -> PatentInfo:
         """
@@ -217,12 +250,10 @@ class PatentDownloader:
             return pdf_link
 
         except requests.RequestException as e:
-            logger.error(f"Network error downloading patent {patent_url}: {e}")
             raise NetworkError(f"Network error: {e}") from e
         except PatentDownloadError:
             raise
         except Exception as e:
-            logger.error(f"Unexpected error for patent {patent_url}: {e}")
             raise DownloadFailedError(f"Unexpected error: {e}") from e
 
     def _find_pdf_link(self, content: bytes, patent_number: str) -> Optional[str]:
@@ -293,7 +324,6 @@ class PatentDownloader:
             return pdf_response.content
 
         except Exception as e:
-            logger.error(f"Error downloading PDF data for patent {patent_number}: {e}")
             raise DownloadFailedError(f"Failed to download PDF data: {e}") from e
 
     def _download_pdf(self, pdf_link: str, patent_number: str, output_path: Path, referer: str) -> bool:
@@ -308,8 +338,7 @@ class PatentDownloader:
             logger.info(f"Successfully downloaded {output_file}")
             return True
 
-        except Exception as e:
-            logger.error(f"Error downloading PDF for patent {patent_number}: {e}")
+        except Exception:
             return False
 
     def _parse_patent_info(self, content: bytes, patent_number: str, patent_url: str) -> PatentInfo:

@@ -89,6 +89,47 @@ def create_mcp_server(output_dir: str = "./downloads") -> FastMCP:
             return f"Unexpected error: {str(e)}"
 
     @server.tool()
+    def download_patents_from_file(file_path: str, has_header: bool = False, output_dir: str = output_dir) -> str:
+        """Download multiple patent PDFs from a file (txt or csv).
+
+        Args:
+            file_path: Path to the file containing patent numbers
+            has_header: Whether the file has a header row
+            output_dir: Directory to save the PDF files
+
+        Returns:
+            Summary of download results
+        """
+        try:
+            # Use the downloader's file download method
+            results = downloader.download_patents_from_file(file_path, has_header, output_dir)
+
+            successful = [pn for pn, success in results.items() if success]
+            failed = [pn for pn, success in results.items() if not success]
+
+            result_text = f"Download completed from file {file_path}:\n"
+            result_text += f"  Total patents processed: {len(results)}\n"
+            result_text += f"  Successful: {len(successful)} patents\n"
+            result_text += f"  Failed: {len(failed)} patents\n"
+
+            if successful:
+                result_text += f"  Successfully downloaded: {', '.join(successful)}\n"
+            if failed:
+                result_text += f"  Failed to download: {', '.join(failed)}"
+
+            return result_text
+
+        except FileNotFoundError as e:
+            return f"File not found: {str(e)}"
+        except ValueError as e:
+            return f"Invalid file format or content: {str(e)}"
+        except PatentDownloadError as e:
+            return f"Download error: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error downloading patents from file: {e}")
+            return f"Unexpected error: {str(e)}"
+
+    @server.tool()
     def get_patent_info(patent_number: str) -> str:
         """Get detailed information about a patent.
 

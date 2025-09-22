@@ -3,20 +3,25 @@
 import argparse
 import sys
 import logging
+import threading
 
 from .downloader import PatentDownloader
 from .exceptions import PatentDownloadError
 
+# Create a lock for thread-safe progress bar updates
+progress_lock = threading.Lock()
+
 
 def print_progress_bar(completed: int, total: int, patent_number: str, success: bool):
     """Print a progress bar using =========== symbols."""
-    progress = int((completed / total) * 80)
-    bar = "=" * progress + " " * (80 - progress)
+    with progress_lock:
+        progress = int((completed / total) * 80)
+        bar = "=" * progress + " " * (80 - progress)
 
-    print(f"\r[{bar}] {completed}/{total}", end="", flush=True)
+        print(f"\r[{bar}] {completed}/{total}", end="", flush=True)
 
-    if completed == total:
-        print()  # New line at the end
+        if completed == total:
+            print()  # New line at the end
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -30,22 +35,10 @@ def download_command(args: argparse.Namespace) -> int:
     try:
         downloader = PatentDownloader()
 
-        if len(args.patent_numbers) == 1:
-            # Single patent download
-            success = downloader.download_patent(args.patent_numbers[0], args.output_dir)
-            if success:
-                print(f"Successfully downloaded patent {args.patent_numbers[0]}")
-                return 0
-            else:
-                print(f"Failed to download patent {args.patent_numbers[0]}")
-                return 1
-        else:
-            # Multiple patents download with progress
-            total = len(args.patent_numbers)
-            print(f"Starting download of {total} patents...")
-
-            results = downloader.download_patents(
-                args.patent_numbers, args.output_dir, progress_callback=print_progress_bar
+        # Get patent numbers from file or command line arguments
+        if args.file:
+            results = downloader.download_patents_from_file(
+                args.file, args.has_header, args.output_dir, progress_callback=print_progress_bar
             )
 
             successful = [pn for pn, success in results.items() if success]
@@ -61,6 +54,40 @@ def download_command(args: argparse.Namespace) -> int:
                 print(f"  Failed to download: {', '.join(failed)}")
 
             return 0 if not failed else 1
+        else:
+            patent_numbers = args.patent_numbers
+
+            if len(patent_numbers) == 1:
+                # Single patent download
+                success = downloader.download_patent(patent_numbers[0], args.output_dir)
+                if success:
+                    print(f"Successfully downloaded patent {patent_numbers[0]}")
+                    return 0
+                else:
+                    print(f"Failed to download patent {patent_numbers[0]}")
+                    return 1
+            else:
+                # Multiple patents download with progress
+                total = len(patent_numbers)
+                print(f"Starting download of {total} patents...")
+
+                results = downloader.download_patents(
+                    patent_numbers, args.output_dir, progress_callback=print_progress_bar
+                )
+
+                successful = [pn for pn, success in results.items() if success]
+                failed = [pn for pn, success in results.items() if not success]
+
+                print("\nDownload completed:")
+                print(f"  Successful: {len(successful)} patents")
+                print(f"  Failed: {len(failed)} patents")
+
+                if successful:
+                    print(f"  Successfully downloaded: {', '.join(successful)}")
+                if failed:
+                    print(f"  Failed to download: {', '.join(failed)}")
+
+                return 0 if not failed else 1
 
     except PatentDownloadError as e:
         print(f"Error: {e}")
@@ -121,6 +148,8 @@ def main() -> int:
 Examples:
   patent-downloader download WO2013078254A1
   patent-downloader download WO2013078254A1 US20130123448A1 --output-dir ./patents
+  patent-downloader download --file patents.txt --has-header
+  patent-downloader download --file patents.csv
   patent-downloader info WO2013078254A1
   patent-downloader mcp-server --port 8000
         """,
@@ -132,9 +161,15 @@ Examples:
 
     # Download command
     download_parser = subparsers.add_parser("download", help="Download patent(s)")
-    download_parser.add_argument("patent_numbers", nargs="+", help="Patent number(s) to download")
+    download_parser.add_argument("patent_numbers", nargs="*", help="Patent number(s) to download")
     download_parser.add_argument(
         "-o", "--output-dir", default=".", help="Output directory for downloaded files (default: current directory)"
+    )
+    download_parser.add_argument(
+        "-f", "--file", help="File containing patent numbers (txt or csv). Cannot be used with patent_numbers argument"
+    )
+    download_parser.add_argument(
+        "--has-header", action="store_true", help="File has a header row (works for both TXT and CSV files)"
     )
     download_parser.set_defaults(func=download_command)
 
@@ -154,6 +189,15 @@ Examples:
     if not args.command:
         parser.print_help()
         return 1
+
+    # Validate download command arguments
+    if args.command == "download":
+        if args.file and args.patent_numbers:
+            print("Error: Cannot use both --file and patent_numbers arguments together")
+            return 1
+        if not args.file and not args.patent_numbers:
+            print("Error: Must provide either patent_numbers or --file argument")
+            return 1
 
     setup_logging(args.verbose)
 
