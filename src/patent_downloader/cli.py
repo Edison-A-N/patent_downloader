@@ -2,56 +2,49 @@
 
 import argparse
 import sys
-import logging
-import threading
 
 from .downloader import PatentDownloader
 from .exceptions import PatentDownloadError
-
-# Create a lock for thread-safe progress bar updates
-progress_lock = threading.Lock()
+from .progress_logger import setup_progress_logging, get_progress_logger
+from .file_utils import read_patent_numbers_from_file
 
 
 def print_progress_bar(completed: int, total: int, patent_number: str, success: bool):
-    """Print a progress bar using =========== symbols."""
-    with progress_lock:
-        progress = int((completed / total) * 80)
-        bar = "=" * progress + " " * (80 - progress)
-
-        print(f"\r[{bar}] {completed}/{total}", end="", flush=True)
-
-        if completed == total:
-            print()  # New line at the end
-
-
-def setup_logging(verbose: bool = False) -> None:
-    """Setup logging configuration."""
-    level = logging.DEBUG if verbose else logging.WARNING
-    logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    """Print a progress bar using modern UI with proper log coordination."""
+    progress_logger = get_progress_logger()
+    progress_logger.update_progress(completed, total, patent_number, success)
 
 
 def download_command(args: argparse.Namespace) -> int:
     """Handle the download command."""
+    progress_logger = get_progress_logger()
+
     try:
-        downloader = PatentDownloader(max_retries=args.max_retries)
+        downloader = PatentDownloader(max_retries=args.max_retries, progress_logger=progress_logger)
 
         # Get patent numbers from file or command line arguments
         if args.file:
+            # Start progress tracking
+            patent_numbers = read_patent_numbers_from_file(args.file, args.has_header)
+            total = len(patent_numbers)
+            if total > 0:
+                progress_logger.start_progress(total)
+
             results = downloader.download_patents_from_file(
                 args.file, args.has_header, args.output_dir, progress_callback=print_progress_bar
             )
 
+            # Finish progress tracking
+            progress_logger.finish_progress()
+
             successful = [pn for pn, success in results.items() if success]
             failed = [pn for pn, success in results.items() if not success]
 
-            print("\nDownload completed:")
-            print(f"  Successful: {len(successful)} patents")
-            print(f"  Failed: {len(failed)} patents")
-
+            progress_logger.log_message(f"Download completed: {len(successful)} successful, {len(failed)} failed")
             if successful:
-                print(f"  Successfully downloaded: {', '.join(successful)}")
+                progress_logger.log_message(f"Successfully downloaded: {', '.join(successful)}", "success")
             if failed:
-                print(f"  Failed to download: {', '.join(failed)}")
+                progress_logger.log_message(f"Failed to download: {', '.join(failed)}", "warning")
 
             return 0 if not failed else 1
         else:
@@ -59,33 +52,35 @@ def download_command(args: argparse.Namespace) -> int:
 
             if len(patent_numbers) == 1:
                 # Single patent download
+                progress_logger.log_message(f"Downloading patent {patent_numbers[0]}...")
                 success = downloader.download_patent(patent_numbers[0], args.output_dir)
                 if success:
-                    print(f"Successfully downloaded patent {patent_numbers[0]}")
+                    progress_logger.log_message(f"Successfully downloaded patent {patent_numbers[0]}", "success")
                     return 0
                 else:
-                    print(f"Failed to download patent {patent_numbers[0]}")
+                    progress_logger.log_message(f"Failed to download patent {patent_numbers[0]}", "error")
                     return 1
             else:
                 # Multiple patents download with progress
                 total = len(patent_numbers)
-                print(f"Starting download of {total} patents...")
+                progress_logger.log_message(f"Starting download of {total} patents...")
+                progress_logger.start_progress(total)
 
                 results = downloader.download_patents(
                     patent_numbers, args.output_dir, progress_callback=print_progress_bar
                 )
 
+                # Finish progress tracking
+                progress_logger.finish_progress()
+
                 successful = [pn for pn, success in results.items() if success]
                 failed = [pn for pn, success in results.items() if not success]
 
-                print("\nDownload completed:")
-                print(f"  Successful: {len(successful)} patents")
-                print(f"  Failed: {len(failed)} patents")
-
+                progress_logger.log_message(f"Download completed: {len(successful)} successful, {len(failed)} failed")
                 if successful:
-                    print(f"  Successfully downloaded: {', '.join(successful)}")
+                    progress_logger.log_message(f"Successfully downloaded: {', '.join(successful)}", "success")
                 if failed:
-                    print(f"  Failed to download: {', '.join(failed)}")
+                    progress_logger.log_message(f"Failed to download: {', '.join(failed)}", "warning")
 
                 return 0 if not failed else 1
 
@@ -102,40 +97,48 @@ def download_command(args: argparse.Namespace) -> int:
 
 def info_command(args: argparse.Namespace) -> int:
     """Handle the info command."""
+    progress_logger = get_progress_logger()
+
     try:
-        downloader = PatentDownloader(max_retries=args.max_retries)
+        downloader = PatentDownloader(max_retries=args.max_retries, progress_logger=progress_logger)
+        progress_logger.log_message(f"Fetching information for patent {args.patent_number}...")
         patent_info = downloader.get_patent_info(args.patent_number)
 
-        print(f"Patent Information for {args.patent_number}:")
-        print(f"  Title: {patent_info.title}")
-        print(f"  Inventors: {', '.join(patent_info.inventors)}")
-        print(f"  Assignee: {patent_info.assignee}")
-        print(f"  Publication Date: {patent_info.publication_date}")
-        print(f"  URL: {patent_info.url}")
-        print(f"  Abstract: {patent_info.abstract[:200]}...")
+        progress_logger.log_message(f"Patent Information for {args.patent_number}:")
+        progress_logger.log_message(f"  Title: {patent_info.title}")
+        progress_logger.log_message(f"  Inventors: {', '.join(patent_info.inventors)}")
+        progress_logger.log_message(f"  Assignee: {patent_info.assignee}")
+        progress_logger.log_message(f"  Publication Date: {patent_info.publication_date}")
+        progress_logger.log_message(f"  URL: {patent_info.url}")
+        progress_logger.log_message(f"  Abstract: {patent_info.abstract[:200]}...")
 
         return 0
 
     except PatentDownloadError as e:
-        print(f"Error: {e}")
+        progress_logger.log_message(f"Error: {e}", "error")
         return 1
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        progress_logger.log_message(f"Unexpected error: {e}", "error")
         return 1
 
 
 def mcp_server_command(_: argparse.Namespace) -> int:
     """Handle the MCP server command."""
+    progress_logger = get_progress_logger()
+
     try:
         from .mcp_server import start_mcp_server
 
+        progress_logger.log_message("Starting MCP server...")
         start_mcp_server()
         return 0
     except ImportError:
-        print("MCP support not available. Install with: pip install 'patent-downloader[mcp]'")
+        progress_logger.log_message(
+            "MCP support not available. Install with: pip install 'patent-downloader[mcp]'", "error"
+        )
         return 1
     except Exception as e:
-        print(f"Error starting MCP server: {e}")
+        progress_logger.log_message(f"Error starting MCP server: {e}", "error")
         return 1
 
 
@@ -199,13 +202,16 @@ Examples:
     # Validate download command arguments
     if args.command == "download":
         if args.file and args.patent_numbers:
-            print("Error: Cannot use both --file and patent_numbers arguments together")
+            progress_logger = get_progress_logger()
+            progress_logger.log_message("Error: Cannot use both --file and patent_numbers arguments together", "error")
             return 1
         if not args.file and not args.patent_numbers:
-            print("Error: Must provide either patent_numbers or --file argument")
+            progress_logger = get_progress_logger()
+            progress_logger.log_message("Error: Must provide either patent_numbers or --file argument", "error")
             return 1
 
-    setup_logging(args.verbose)
+    # Setup logging with progress bar support
+    setup_progress_logging(args.verbose)
 
     return args.func(args)
 

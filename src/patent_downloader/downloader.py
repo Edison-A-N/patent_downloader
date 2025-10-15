@@ -43,10 +43,14 @@ def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 1.0):
                     last_exception = e
                     if attempt < max_retries - 1:  # Don't log on last attempt
                         wait_time = backoff_factor * (2**attempt)  # Exponential backoff
-                        logger.warning(
-                            f"Attempt {attempt + 1} failed for {func.__name__}: {e}. "
-                            f"Retrying in {wait_time:.1f} seconds..."
-                        )
+                        error_msg = f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {wait_time:.1f} seconds..."
+
+                        # Use ProgressLogger if available, otherwise use standard logging
+                        if hasattr(self, "progress_logger") and self.progress_logger:
+                            self.progress_logger.log_message(error_msg, "warning")
+                        else:
+                            logger.warning(error_msg)
+
                         time.sleep(wait_time)
                     continue
                 except Exception:
@@ -54,7 +58,14 @@ def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 1.0):
                     raise
 
             # All retries exhausted
-            logger.error(f"All {max_retries} attempts failed for {func.__name__}")
+            error_msg = f"All {max_retries} attempts failed for {func.__name__}"
+
+            # Use ProgressLogger if available, otherwise use standard logging
+            if hasattr(self, "progress_logger") and self.progress_logger:
+                self.progress_logger.log_message(error_msg, "error")
+            else:
+                logger.error(error_msg)
+
             raise last_exception
 
         return wrapper
@@ -65,7 +76,7 @@ def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 1.0):
 class PatentDownloader:
     """Main class for downloading patents from Google Patents."""
 
-    def __init__(self, timeout: int = 30, user_agent: Optional[str] = None, max_retries: int = 3):
+    def __init__(self, timeout: int = 30, user_agent: Optional[str] = None, max_retries: int = 3, progress_logger=None):
         """
         Initialize the patent downloader.
 
@@ -73,6 +84,7 @@ class PatentDownloader:
             timeout: Request timeout in seconds
             user_agent: Custom user agent string
             max_retries: Maximum number of retry attempts for failed requests (default: 3)
+            progress_logger: Optional ProgressLogger instance for coordinated logging
         """
         self.timeout = timeout
         self.user_agent = user_agent or (
@@ -81,6 +93,7 @@ class PatentDownloader:
             "Chrome/91.0.4472.124 Safari/537.36"
         )
         self.max_retries = max_retries
+        self.progress_logger = progress_logger
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -356,7 +369,11 @@ class PatentDownloader:
         try:
             headers = {"Referer": referer}
 
-            logger.info(f"Downloading PDF data for patent {patent_number} from {pdf_link}")
+            # Use ProgressLogger if available for download progress
+            if self.progress_logger:
+                self.progress_logger.log_message(f"Downloading PDF for patent {patent_number}...", "info")
+            else:
+                logger.info(f"Downloading PDF data for patent {patent_number} from {pdf_link}")
 
             pdf_response = self.session.get(pdf_link, headers=headers, timeout=self.timeout)
             pdf_response.raise_for_status()
@@ -364,11 +381,19 @@ class PatentDownloader:
             # Verify it's actually a PDF
             content_type = pdf_response.headers.get("content-type", "").lower()
             if "pdf" not in content_type and not pdf_response.content.startswith(b"%PDF"):
-                logger.warning(f"Response doesn't appear to be a PDF (Content-Type: {content_type})")
+                warning_msg = f"Response doesn't appear to be a PDF (Content-Type: {content_type})"
+                if self.progress_logger:
+                    self.progress_logger.log_message(warning_msg, "warning")
+                else:
+                    logger.warning(warning_msg)
 
-            logger.info(
+            success_msg = (
                 f"Successfully downloaded PDF data for patent {patent_number} ({len(pdf_response.content)} bytes)"
             )
+            if self.progress_logger:
+                self.progress_logger.log_message(success_msg, "info")
+            else:
+                logger.info(success_msg)
             return pdf_response.content
 
         except Exception as e:
@@ -383,7 +408,11 @@ class PatentDownloader:
             with open(output_file, "wb") as f:
                 f.write(pdf_data)
 
-            logger.info(f"Successfully downloaded {output_file}")
+            success_msg = f"Successfully downloaded {output_file}"
+            if self.progress_logger:
+                self.progress_logger.log_message(success_msg, "success")
+            else:
+                logger.info(success_msg)
             return True
 
         except Exception:
