@@ -33,7 +33,7 @@ def setup_logging(verbose: bool = False) -> None:
 def download_command(args: argparse.Namespace) -> int:
     """Handle the download command."""
     try:
-        downloader = PatentDownloader()
+        downloader = PatentDownloader(max_retries=args.max_retries)
 
         # Get patent numbers from file or command line arguments
         if args.file:
@@ -103,7 +103,7 @@ def download_command(args: argparse.Namespace) -> int:
 def info_command(args: argparse.Namespace) -> int:
     """Handle the info command."""
     try:
-        downloader = PatentDownloader()
+        downloader = PatentDownloader(max_retries=args.max_retries)
         patent_info = downloader.get_patent_info(args.patent_number)
 
         print(f"Patent Information for {args.patent_number}:")
@@ -171,11 +171,17 @@ Examples:
     download_parser.add_argument(
         "--has-header", action="store_true", help="File has a header row (works for both TXT and CSV files)"
     )
+    download_parser.add_argument(
+        "--max-retries", type=int, default=3, help="Maximum number of retry attempts for failed downloads (default: 3)"
+    )
     download_parser.set_defaults(func=download_command)
 
     # Info command
     info_parser = subparsers.add_parser("info", help="Get patent information")
     info_parser.add_argument("patent_number", help="Patent number to get information for")
+    info_parser.add_argument(
+        "--max-retries", type=int, default=3, help="Maximum number of retry attempts for failed requests (default: 3)"
+    )
     info_parser.set_defaults(func=info_command)
 
     # MCP server command

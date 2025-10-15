@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 import logging
 import concurrent.futures
 import threading
+import time
+from functools import wraps
 
 from .file_utils import read_patent_numbers_from_file
 from .exceptions import (
@@ -21,16 +23,56 @@ from .models import PatentInfo
 logger = logging.getLogger(__name__)
 
 
+def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 1.0):
+    """
+    Decorator to retry functions on network-related errors.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        backoff_factor: Factor to increase wait time between retries
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(self, *args, **kwargs)
+                except (requests.RequestException, NetworkError, DownloadFailedError) as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:  # Don't log on last attempt
+                        wait_time = backoff_factor * (2**attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Attempt {attempt + 1} failed for {func.__name__}: {e}. "
+                            f"Retrying in {wait_time:.1f} seconds..."
+                        )
+                        time.sleep(wait_time)
+                    continue
+                except Exception:
+                    # Don't retry on non-network errors
+                    raise
+
+            # All retries exhausted
+            logger.error(f"All {max_retries} attempts failed for {func.__name__}")
+            raise last_exception
+
+        return wrapper
+
+    return decorator
+
+
 class PatentDownloader:
     """Main class for downloading patents from Google Patents."""
 
-    def __init__(self, timeout: int = 30, user_agent: Optional[str] = None):
+    def __init__(self, timeout: int = 30, user_agent: Optional[str] = None, max_retries: int = 3):
         """
         Initialize the patent downloader.
 
         Args:
             timeout: Request timeout in seconds
             user_agent: Custom user agent string
+            max_retries: Maximum number of retry attempts for failed requests (default: 3)
         """
         self.timeout = timeout
         self.user_agent = user_agent or (
@@ -38,6 +80,7 @@ class PatentDownloader:
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/91.0.4472.124 Safari/537.36"
         )
+        self.max_retries = max_retries
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -47,6 +90,7 @@ class PatentDownloader:
             }
         )
 
+    @retry_on_network_error(max_retries=3)
     def download_patent_data(self, patent_number: str) -> bytes:
         """
         Download a patent PDF from Google Patents and return the data as bytes.
@@ -59,6 +103,7 @@ class PatentDownloader:
         except Exception as e:
             raise DownloadFailedError(f"Error downloading patent {patent_number}: {e}") from e
 
+    @retry_on_network_error(max_retries=3)
     def download_patent(self, patent_number: str, output_dir: str = ".") -> bool:
         """
         Download a patent PDF from Google Patents.
@@ -186,6 +231,7 @@ class PatentDownloader:
         except Exception as e:
             raise DownloadFailedError(f"Failed to read patent numbers from file: {e}") from e
 
+    @retry_on_network_error(max_retries=3)
     def get_patent_info(self, patent_number: str) -> PatentInfo:
         """
         Get information about a patent.
@@ -222,6 +268,7 @@ class PatentDownloader:
         if len(patent_number.strip()) < 3:
             raise InvalidPatentNumberError("Patent number too short")
 
+    @retry_on_network_error(max_retries=3)
     def _retrieve_pdf_link(self, patent_number: str, patent_url: str) -> str:
         """
         Download a patent PDF from Google Patents and return the data as bytes.
@@ -303,6 +350,7 @@ class PatentDownloader:
 
         return pdf_link
 
+    @retry_on_network_error(max_retries=3)
     def _download_pdf_data(self, pdf_link: str, patent_number: str, referer: str) -> bytes:
         """Download the PDF data and return as bytes."""
         try:
