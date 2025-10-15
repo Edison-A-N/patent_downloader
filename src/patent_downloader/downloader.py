@@ -45,11 +45,10 @@ def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 1.0):
                         wait_time = backoff_factor * (2**attempt)  # Exponential backoff
                         error_msg = f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {wait_time:.1f} seconds..."
 
-                        # Use ProgressLogger if available, otherwise use standard logging
-                        if hasattr(self, "progress_logger") and self.progress_logger:
-                            self.progress_logger.log_message(error_msg, "warning")
-                        else:
-                            logger.warning(error_msg)
+                        # Use standard logging system for automatic level filtering
+                        # Only show retry info in verbose mode (level 2+)
+                        if logging.getLogger().level <= logging.INFO:
+                            logger.info(error_msg)
 
                         time.sleep(wait_time)
                     continue
@@ -60,11 +59,9 @@ def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 1.0):
             # All retries exhausted
             error_msg = f"All {max_retries} attempts failed for {func.__name__}"
 
-            # Use ProgressLogger if available, otherwise use standard logging
-            if hasattr(self, "progress_logger") and self.progress_logger:
-                self.progress_logger.log_message(error_msg, "error")
-            else:
-                logger.error(error_msg)
+            # Use standard logging system for automatic level filtering
+            # Change retry failure log level to WARNING instead of ERROR
+            logger.warning(error_msg)
 
             raise last_exception
 

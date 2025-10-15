@@ -35,8 +35,32 @@ class ProgressLogger:
                 self._clear_current_line()
                 self._progress_active = False
 
-    def log_message(self, message: str, level: str = "info") -> None:
-        """Log message without interfering with progress bar."""
+    def log_message(self, message: str, level: str = "info", force_show: bool = False) -> None:
+        """Log message without interfering with progress bar.
+
+        Args:
+            message: Message content
+            level: Message level (error, warning, info, debug, success)
+            force_show: Whether to force display, ignoring log level restrictions
+        """
+        # Filter based on current log level
+        current_log_level = logging.getLogger().level
+
+        # Map level strings to logging levels
+
+        # Special handling: display error and warning messages in ERROR level (default), unless forced
+        if current_log_level == logging.ERROR and not force_show:
+            # In ERROR mode, display error and warning messages
+            if level not in ["error", "warning"]:
+                return
+        # In WARNING level, display error, warning and info messages, unless forced
+        elif current_log_level == logging.WARNING and not force_show:
+            if level not in ["error", "warning"]:
+                return
+        # INFO level and above display all messages
+        else:
+            pass  # Display all messages
+
         with self._lock:
             # Clear current progress line
             if self._progress_active:
@@ -64,7 +88,7 @@ class ProgressLogger:
             filled_length = int(bar_length * current // total)
             bar = "█" * filled_length + "░" * (bar_length - filled_length)
 
-            # 使用统一的进度图标，不随单个专利状态变化
+            # Use unified progress icon, not changing with individual patent status
             progress_icon = "▶️"
             patent_status = " ✅" if success else " ❌" if patent_number else ""
             patent_info = f" [{patent_number}]{patent_status}" if patent_number else ""
@@ -95,20 +119,38 @@ class ProgressLogHandler(logging.Handler):
         """Emit log record through progress logger."""
         try:
             msg = self.format(record)
-            if record.levelno >= logging.ERROR:
-                self.progress_logger.log_message(msg, "error")
-            elif record.levelno >= logging.WARNING:
-                self.progress_logger.log_message(msg, "warning")
-            elif record.levelno >= logging.INFO:
-                self.progress_logger.log_message(msg, "info")
-            else:
-                self.progress_logger.log_message(msg, "debug")
+            # Use global UI level for filtering
+            ui_level = get_ui_level()
+
+            if record.levelno >= ui_level:
+                if record.levelno >= logging.ERROR:
+                    self.progress_logger.log_message(msg, "error")
+                elif record.levelno >= logging.WARNING:
+                    self.progress_logger.log_message(msg, "warning")
+                elif record.levelno >= logging.INFO:
+                    self.progress_logger.log_message(msg, "info")
+                else:
+                    self.progress_logger.log_message(msg, "debug")
         except Exception:
             self.handleError(record)
 
 
+# Global UI level for filtering
+_ui_level: int = logging.ERROR
+
 # Global progress logger instance
 _progress_logger: Optional[ProgressLogger] = None
+
+
+def get_ui_level() -> int:
+    """Get current UI level."""
+    return _ui_level
+
+
+def set_ui_level(level: int) -> None:
+    """Set UI level."""
+    global _ui_level
+    _ui_level = level
 
 
 def get_progress_logger() -> ProgressLogger:
@@ -119,23 +161,46 @@ def get_progress_logger() -> ProgressLogger:
     return _progress_logger
 
 
-def setup_progress_logging(verbose: bool = False) -> ProgressLogger:
-    """Setup logging with progress bar support."""
+def setup_progress_logging(verbose_level: int = 0) -> ProgressLogger:
+    """Setup logging with progress bar support.
+
+    Args:
+        verbose_level: Verbosity level (0=ERROR, 1=WARNING+, 2=INFO+, 3=DEBUG+)
+    """
     progress_logger = get_progress_logger()
 
-    # Configure root logger
-    level = logging.DEBUG if verbose else logging.WARNING
-    root_logger = logging.getLogger()
-    root_logger.setLevel(level)
+    # Configure root logger based on verbose level
+    # Root logger level set to WARNING so both WARNING and ERROR messages can reach the handler
+    # But UI display will be filtered based on verbose_level
+    if verbose_level >= 3:
+        ui_level = logging.DEBUG
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    elif verbose_level >= 2:
+        ui_level = logging.INFO
+        formatter = logging.Formatter("%(name)s - %(message)s")
+    elif verbose_level >= 1:
+        ui_level = logging.WARNING  # -v shows WARNING and ERROR
+        formatter = logging.Formatter("%(name)s - %(message)s")
+    else:
+        # Level 0 (default): Only show ERROR, don't show WARNING
+        # User requirement: don't show WARNING by default, need verbose to display
+        ui_level = logging.ERROR  # UI only shows ERROR
+        formatter = logging.Formatter("%(name)s - %(message)s")
 
-    # Remove existing handlers
+    # Set global UI level
+    set_ui_level(ui_level)
+
+    root_logger = logging.getLogger()
+    # Key: root logger level must be set to allow WARNING through
+    root_logger.setLevel(logging.WARNING)  # Always allow WARNING and ERROR through
+
+    # Remove existing handlers to avoid duplicates
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
     # Add our custom handler
     handler = ProgressLogHandler(progress_logger)
-    handler.setLevel(level)
-    formatter = logging.Formatter("%(name)s - %(message)s")
+    handler.setLevel(logging.DEBUG)  # Accept all log levels
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 

@@ -80,7 +80,8 @@ def download_command(args: argparse.Namespace) -> int:
                 if successful:
                     progress_logger.log_message(f"Successfully downloaded: {', '.join(successful)}", "success")
                 if failed:
-                    progress_logger.log_message(f"Failed to download: {', '.join(failed)}", "warning")
+                    # Final download failure result is ERROR level
+                    progress_logger.log_message(f"Failed to download: {', '.join(failed)}", "error")
 
                 return 0 if not failed else 1
 
@@ -104,13 +105,15 @@ def info_command(args: argparse.Namespace) -> int:
         progress_logger.log_message(f"Fetching information for patent {args.patent_number}...")
         patent_info = downloader.get_patent_info(args.patent_number)
 
-        progress_logger.log_message(f"Patent Information for {args.patent_number}:")
-        progress_logger.log_message(f"  Title: {patent_info.title}")
-        progress_logger.log_message(f"  Inventors: {', '.join(patent_info.inventors)}")
-        progress_logger.log_message(f"  Assignee: {patent_info.assignee}")
-        progress_logger.log_message(f"  Publication Date: {patent_info.publication_date}")
-        progress_logger.log_message(f"  URL: {patent_info.url}")
-        progress_logger.log_message(f"  Abstract: {patent_info.abstract[:200]}...")
+        # Force show user results (important information)
+        progress_logger.log_message(f"Patent Information for {args.patent_number}:", force_show=True)
+        progress_logger.log_message(f"  Title: {patent_info.title}", force_show=True)
+        progress_logger.log_message(f"  Inventors: {', '.join(patent_info.inventors)}", force_show=True)
+        progress_logger.log_message(f"  Assignee: {patent_info.assignee}", force_show=True)
+        progress_logger.log_message(f"  Publication Date: {patent_info.publication_date}", force_show=True)
+        progress_logger.log_message(f"  URL: {patent_info.url}", force_show=True)
+        if patent_info.abstract:
+            progress_logger.log_message(f"  Abstract: {patent_info.abstract[:200]}...", force_show=True)
 
         return 0
 
@@ -158,7 +161,13 @@ Examples:
         """,
     )
 
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity level (use -v for INFO, -vv for DEBUG, -vvv for TRACE)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
