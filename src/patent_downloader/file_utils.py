@@ -1,5 +1,6 @@
 """File utility functions for reading patent numbers from files."""
 
+import os
 import csv
 from pathlib import Path
 from typing import List
@@ -19,7 +20,8 @@ def read_patent_numbers_from_file(file_path: str, has_header: bool = False) -> L
     Raises:
         ValueError: If file format is not supported or data format is invalid
     """
-    path = Path(file_path)
+    # Expand ~ to home directory
+    path = Path(os.path.expanduser(file_path))
 
     if not path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")

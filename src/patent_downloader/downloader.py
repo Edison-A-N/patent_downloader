@@ -1,5 +1,6 @@
 """Main patent downloader implementation."""
 
+import os
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Callable
@@ -136,7 +137,8 @@ class PatentDownloader:
 
             patent_url = f"https://patents.google.com/patent/{patent_number}/en"
 
-            output_path = Path(output_dir)
+            # Expand ~ to home directory
+            output_path = Path(os.path.expanduser(output_dir))
             output_path.mkdir(parents=True, exist_ok=True)
 
             pdf_link = self._retrieve_pdf_link(patent_number, patent_url)

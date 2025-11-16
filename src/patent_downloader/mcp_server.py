@@ -20,7 +20,8 @@ def create_mcp_server(output_dir: str = "./downloads") -> FastMCP:
     """Create and configure the MCP server."""
     server = FastMCP("patent-downloader")
     downloader = PatentDownloader()
-    output_dir = Path(output_dir)
+    # Expand ~ to home directory
+    output_dir = Path(os.path.expanduser(output_dir))
 
     @server.tool()
     def download_patent(patent_number: str, output_dir: str = output_dir) -> str:
@@ -34,7 +35,8 @@ def create_mcp_server(output_dir: str = "./downloads") -> FastMCP:
             Success or error message
         """
         try:
-            # Ensure output directory exists
+            # Expand ~ to home directory and ensure output directory exists
+            output_dir = os.path.expanduser(str(output_dir))
             Path(output_dir).mkdir(parents=True, exist_ok=True)
 
             success = downloader.download_patent(patent_number, output_dir)
@@ -63,7 +65,8 @@ def create_mcp_server(output_dir: str = "./downloads") -> FastMCP:
             Summary of download results
         """
         try:
-            # Ensure output directory exists
+            # Expand ~ to home directory and ensure output directory exists
+            output_dir = os.path.expanduser(str(output_dir))
             Path(output_dir).mkdir(parents=True, exist_ok=True)
 
             results = downloader.download_patents(patent_numbers, output_dir)
@@ -101,6 +104,8 @@ def create_mcp_server(output_dir: str = "./downloads") -> FastMCP:
             Summary of download results
         """
         try:
+            # Expand ~ to home directory
+            output_dir = os.path.expanduser(str(output_dir))
             # Use the downloader's file download method
             results = downloader.download_patents_from_file(file_path, has_header, output_dir)
 
@@ -164,6 +169,8 @@ def create_mcp_server(output_dir: str = "./downloads") -> FastMCP:
 def start_mcp_server() -> None:
     """Start the MCP server using stdio transport."""
     output_dir = os.getenv("OUTPUT_DIR", "./downloads")
+    # Expand ~ to home directory
+    output_dir = os.path.expanduser(output_dir)
     server = create_mcp_server(output_dir=output_dir)
 
     try:
