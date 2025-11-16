@@ -70,11 +70,31 @@ The MCP server provides these functions:
 - `download_patents`: Download multiple patents  
 - `get_patent_info`: Get patent information
 
+You can configure the default download directory using the `OUTPUT_DIR` environment variable in your MCP configuration. This allows you to set a fixed download path for all patent downloads.
+
 #### Quick Install for Cursor
 
 **Using uvx** (no installation required)
+
+Basic installation (default download directory: `~/downloads`):
 ```
-cursor://anysphere.cursor-deeplink/mcp/install?name=patent-downloader&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLXdpdGgiLCAibWNwIiwgInBhdGVudC1kb3dubG9hZGVyIiwgIm1jcC1zZXJ2ZXIiXX0=
+cursor://anysphere.cursor-deeplink/mcp/install?name=patent-downloader&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLXdpdGgiLCAibWNwIiwgInBhdGVudC1kb3dubG9hZGVyIiwgIm1jcC1zZXJ2ZXIiXX0
+```
+
+**Note**: If you need to customize the download directory, you'll need to manually edit your `mcp.json` file after installation and add the `env` section:
+
+```json
+{
+  "mcpServers": {
+    "patent-downloader": {
+      "command": "uvx",
+      "args": ["--with", "mcp", "patent-downloader", "mcp-server"],
+      "env": {
+        "OUTPUT_DIR": "~/Downloads/patents"
+      }
+    }
+  }
+}
 ```
 
 #### Manual Setup
