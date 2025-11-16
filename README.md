@@ -70,6 +70,15 @@ The MCP server provides these functions:
 - `download_patents`: Download multiple patents  
 - `get_patent_info`: Get patent information
 
+#### Quick Install for Cursor
+
+**Using uvx** (no installation required)
+```
+cursor://anysphere.cursor-deeplink/mcp/install?name=patent-downloader&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLXdpdGgiLCAibWNwIiwgInBhdGVudC1kb3dubG9hZGVyIiwgIm1jcC1zZXJ2ZXIiXX0=
+```
+
+#### Manual Setup
+
 ```bash
 # Start server
 patent-downloader mcp-server
