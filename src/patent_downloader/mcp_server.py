@@ -20,27 +20,13 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 
 # Pydantic models for MCP output schemas
-class SetOutputDirResponse(BaseModel):
-    """Response for setting output directory."""
-
-    success: bool = Field(..., description="Whether the operation was successful")
-    directory: str = Field(..., description="The configured output directory path")
-    message: str = Field(..., description="Success or error message")
-
-
-class GetOutputDirResponse(BaseModel):
-    """Response for getting output directory."""
-
-    directory: str = Field(..., description="The current default output directory path")
 
 
 class DownloadPatentResponse(BaseModel):
     """Response for downloading a single patent."""
 
-    success: bool = Field(..., description="Whether the download was successful")
     patent_number: str = Field(..., description="The patent number")
     file_path: Optional[str] = Field(None, description="Path to the downloaded PDF file")
-    message: str = Field(..., description="Success or error message")
 
 
 class DownloadPatentsResponse(BaseModel):
@@ -66,8 +52,6 @@ class PatentInfoResponse(BaseModel):
     publication_date: str = Field(..., description="Publication date")
     abstract: str = Field(..., description="Patent abstract")
     url: str = Field(..., description="URL to the patent page")
-    success: bool = Field(True, description="Whether the information was retrieved successfully")
-    message: Optional[str] = Field(None, description="Error message if any")
 
 
 def _get_config_path() -> Path:
@@ -130,48 +114,7 @@ def create_mcp_server(output_dir: Optional[str] = None) -> FastMCP:
     if output_dir is not None:
         _set_default_output_dir(output_dir)
 
-    @server.tool()
-    def set_output_dir(output_dir: str) -> SetOutputDirResponse:
-        """Set the default download directory for patent downloads.
-
-        This directory will be used for all download operations unless explicitly
-        overridden in the download function call.
-
-        Args:
-            output_dir: Directory path to save downloaded patent PDFs.
-                       Supports ~ for home directory (e.g., '~/Downloads/patents').
-
-        Returns:
-            Response with success status, configured path, and message
-        """
-        try:
-            _set_default_output_dir(output_dir)
-            normalized_path = str(Path(os.path.expanduser(output_dir)).resolve())
-            return SetOutputDirResponse(
-                success=True, directory=normalized_path, message=f"Default download directory set to: {normalized_path}"
-            )
-        except Exception as e:
-            logger.error(f"Error setting output directory: {e}")
-            return SetOutputDirResponse(
-                success=False, directory="", message=f"Error setting output directory: {str(e)}"
-            )
-
-    @server.tool()
-    def get_output_dir() -> GetOutputDirResponse:
-        """Get the currently configured default download directory.
-
-        Returns:
-            Response with the current default download directory path
-        """
-        try:
-            output_dir = _get_default_output_dir()
-            normalized_path = str(Path(os.path.expanduser(output_dir)).resolve())
-            return GetOutputDirResponse(directory=normalized_path)
-        except Exception as e:
-            logger.error(f"Error getting output directory: {e}")
-            return GetOutputDirResponse(directory=f"Error: {str(e)}")
-
-    @server.tool()
+    @server.tool(structured_output=True)
     def download_patent(patent_number: str, output_dir: Optional[str] = None) -> DownloadPatentResponse:
         """Download a single patent PDF from Google Patents.
 
@@ -220,7 +163,7 @@ def create_mcp_server(output_dir: Optional[str] = None) -> FastMCP:
                 success=False, patent_number=patent_number, file_path=None, message=f"Unexpected error: {str(e)}"
             )
 
-    @server.tool()
+    @server.tool(structured_output=True)
     def download_patents(patent_numbers: List[str], output_dir: Optional[str] = None) -> DownloadPatentsResponse:
         """Download multiple patent PDFs from Google Patents.
 
@@ -276,7 +219,7 @@ def create_mcp_server(output_dir: Optional[str] = None) -> FastMCP:
                 output_directory=output_dir if output_dir else "",
             )
 
-    @server.tool()
+    @server.tool(structured_output=True)
     def download_patents_from_file(
         file_path: str, has_header: bool = False, output_dir: Optional[str] = None
     ) -> DownloadPatentsResponse:
@@ -354,7 +297,7 @@ def create_mcp_server(output_dir: Optional[str] = None) -> FastMCP:
                 output_directory=output_dir if output_dir else "",
             )
 
-    @server.tool()
+    @server.tool(structured_output=True)
     def get_patent_info(patent_number: str) -> PatentInfoResponse:
         """Get detailed information about a patent.
 
