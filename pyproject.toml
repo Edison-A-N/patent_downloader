@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "patent-downloader"
-version = "0.4.0"
+version = "0.4.1"
 description = "A Python SDK for downloading patents from Google Patents with MCP support"
 readme = "README.md"
 license = {text = "MIT"}
